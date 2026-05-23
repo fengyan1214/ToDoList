@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from datetime import datetime
 from fastapi import Path, Query, Body
 from typing import Annotated
+from itertools import count
 
 app = FastAPI()
 
@@ -15,19 +16,28 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-id_counter = 4
-
+id_counter = count(4)
 
 class ToDoItem(BaseModel):
     id: int 
     title: str
+    completed: bool 
+    content: str 
+    createdAt: datetime
+    updatedAt: datetime 
+
+class ToDoUpdate(BaseModel):
+    title: str | None = None
+    completed: bool | None = None
+    content: str | None = None
+
+class ToDoCreate(BaseModel):
+    title: str
+    content: str
     completed: bool = False
-    content: str = ""
-    createdAt: datetime = datetime.now()
-    updatedAt: datetime = datetime.now()
 
 
-fake_db = [
+fake_db: list[ToDoItem] = [
     ToDoItem(
         id=1,
         title="学习Python",
@@ -77,17 +87,17 @@ async def get_toDo_by_id(id: Annotated[int, Path()]):
 
 
 @app.post("/toDo")
-async def post_toDo(item: Annotated[ToDoItem, Body()]):
-    item.id = id_counter
-    id_counter += 1
-    fake_db.append(item)
-    return item
-
-
-class ToDoUpdate(BaseModel):
-    title: str | None = None
-    completed: bool | None = None
-    content: str | None = None
+async def post_toDo(item: Annotated[ToDoCreate, Body()]):
+    new_item = ToDoItem(
+        id=next(id_counter),
+        title=item.title,
+        completed=item.completed,
+        content=item.content,
+        createdAt=datetime.now(),
+        updatedAt=datetime.now(),
+    )
+    fake_db.append(new_item)
+    return new_item
 
 
 @app.put("/toDo/{id}")
@@ -104,5 +114,8 @@ async def put_toDo(id: Annotated[int, Path()], item: Annotated[ToDoUpdate, Body(
 
 @app.delete("/toDo/{id}")
 async def delete_toDo(id: Annotated[int, Path()]):
-    deleted_item = fake_db.pop(id - 1)
-    return {"message": "success", "deleted_item": deleted_item}
+    for i, item in enumerate(fake_db):
+        if item.id == id:
+            fake_db.pop(i)
+            return {"message": "success", "deleted_item": item}
+    return {"message": "任务不存在"}

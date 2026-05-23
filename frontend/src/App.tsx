@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 
 import "./App.css";
 
 interface ToDoItem {
-  id: number;
+  id?: number;
   title: string;
   completed: boolean;
   createdAt: Date;
@@ -18,7 +18,9 @@ interface countInfo {
 const baseUrl = "http://localhost:8000";
 function App() {
   const [toDoList, setToDoList] = useState<ToDoItem[]>([]);
-  const [currentItem, setCurrentItem] = useState<ToDoItem | null>(null);
+  const [currentItem, setCurrentItem] = useState<Partial<ToDoItem> | null>(
+    null,
+  );
   const [countInfo, setCountInfo] = useState<countInfo>({
     total: 0,
     completed: 0,
@@ -30,9 +32,6 @@ function App() {
     const data = await response.json();
     setCountInfo(data);
   }
-  useEffect(() => {
-    fetchCountInfo();
-  }, []);
 
   async function fetchData(completed: boolean | null = null) {
     let url = baseUrl + "/toDo";
@@ -43,54 +42,73 @@ function App() {
     const data = await response.json();
     console.log(data);
     setToDoList(data);
+  }
+
+  function initData() {
+    fetchData();
+    fetchCountInfo();
     setCurrentItem(null);
   }
-  async function getToItem(id: number) {
-    const response = await fetch(baseUrl + "/toDo/" + id);
-    const data = await response.json();
-    console.log(data);
-    return data;
-  }
+
   async function handleDelete(id: number) {
     const response = await fetch(baseUrl + "/toDo/" + id, {
       method: "DELETE",
+      headers: { "Content-Type": "application/json" },
     });
-    const data = await response.json();
-    console.log(data);
-    fetchData();
+    if (!response.ok) {
+      alert("删除失败");
+      return;
+    }
+    initData();
+    fetchCountInfo();
   }
   async function handleFinish(id: number) {
     const response = await fetch(baseUrl + "/toDo/" + id, {
       method: "PUT",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         completed: !toDoList.find((item) => item.id === id)?.completed,
       }),
     });
-    const data = await response.json();
-    console.log(data);
-    fetchData();
+    if (!response.ok) {
+      alert("操作失败");
+      return;
+    }
+    initData();
   }
-  async function handleAdd(item: ToDoItem) {
-    const response = await fetch(baseUrl + "/toDo", {
+  async function handleAdd(item: Partial<ToDoItem>) {
+    await fetch(baseUrl + "/toDo", {
       method: "POST",
-      body: JSON.stringify(item),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: item.title || "",
+        content: item.content || "",
+        completed: item.completed || false,
+      }),
     });
-    const data = await response.json();
-    console.log(data);
-    fetchData();
+    initData();
   }
-  async function handleUpdate(item: ToDoItem) {
+  async function handleUpdate(item: Partial<ToDoItem>) {
     const response = await fetch(baseUrl + "/toDo/" + item.id, {
       method: "PUT",
-      body: JSON.stringify(item),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: item.title || "",
+        content: item.content || "",
+        completed: item.completed || false,
+      }),
     });
+    if (!response.ok) {
+      alert("更新失败");
+      return;
+    }
     const data = await response.json();
     console.log(data);
-    fetchData();
+    initData();
   }
 
-  async function handleSubmit(item: ToDoItem) {
-    if (item.id === 0) {
+  async function handleSubmit(item: Partial<ToDoItem>) {
+    if (item.id === undefined) {
       await handleAdd(item);
     } else {
       await handleUpdate(item);
@@ -98,7 +116,7 @@ function App() {
   }
 
   useEffect(() => {
-    fetchData();
+    initData();
   }, []);
 
   return (
@@ -153,16 +171,22 @@ function App() {
                       更新于：{item.updatedAt.toLocaleString()}
                     </div>
                   </div>
+                  <div className="operation">
+                    <button onClick={() => handleDelete(item.id)}>删除</button>
+                  </div>
                 </div>
               );
             })}
           </div>
         </div>
         <div className="input-panel">
+          <button className="add-button" onClick={() => setCurrentItem({})}>
+            添加
+          </button>
           <input
             value={currentItem?.title || ""}
             onChange={(e) =>
-              setCurrentItem({ ...currentItem!, title: e.target.value })
+              setCurrentItem({ ...currentItem, title: e.target.value })
             }
             className="input-title"
             type="text"
@@ -171,13 +195,13 @@ function App() {
           <textarea
             value={currentItem?.content || ""}
             onChange={(e) =>
-              setCurrentItem({ ...currentItem!, content: e.target.value })
+              setCurrentItem({ ...currentItem, content: e.target.value })
             }
             className="input-description"
             placeholder="输入待办事项内容"
           ></textarea>
           <button
-            onClick={() => handleSubmit(currentItem!)}
+            onClick={() => currentItem && handleSubmit(currentItem)}
             className="add-button"
           >
             完成
