@@ -1,10 +1,11 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import datetime
 from fastapi import Path, Query, Body
 from typing import Annotated
 from itertools import count
+from app.auth import auth_router, get_current_user
 
 app = FastAPI()
 
@@ -64,22 +65,30 @@ fake_db: list[ToDoItem] = [
     ),
 ]
 
+app.include_router(auth_router)
+
 @app.get("/count")
-async def get_count():
+async def get_count(user=Depends(get_current_user)):
     return {"total": len(fake_db),
         "completed": sum(item.completed for item in fake_db),
         "uncompleted": len(fake_db) - sum(item.completed for item in fake_db)}
 
 
 @app.get("/toDo")
-async def get_toDo(completed: Annotated[bool | None, Query()] = None):
+async def get_toDo(
+    completed: Annotated[bool | None, Query()] = None,
+    user=Depends(get_current_user),
+):
     if completed is None:
         return fake_db
     return [item for item in fake_db if item.completed == completed]
 
 
 @app.get("/toDo/{id}")
-async def get_toDo_by_id(id: Annotated[int, Path()]):
+async def get_toDo_by_id(
+    id: Annotated[int, Path()],
+    user=Depends(get_current_user),
+):
     target = next((t for t in fake_db if t.id == id), None)
     if target is None:
         return {"message": "任务不存在"}
@@ -87,7 +96,10 @@ async def get_toDo_by_id(id: Annotated[int, Path()]):
 
 
 @app.post("/toDo")
-async def post_toDo(item: Annotated[ToDoCreate, Body()]):
+async def post_toDo(
+    item: Annotated[ToDoCreate, Body()],
+    user=Depends(get_current_user),
+):
     new_item = ToDoItem(
         id=next(id_counter),
         title=item.title,
@@ -101,7 +113,11 @@ async def post_toDo(item: Annotated[ToDoCreate, Body()]):
 
 
 @app.put("/toDo/{id}")
-async def put_toDo(id: Annotated[int, Path()], item: Annotated[ToDoUpdate, Body()]):
+async def put_toDo(
+    id: Annotated[int, Path()],
+    item: Annotated[ToDoUpdate, Body()],
+    user=Depends(get_current_user),
+):
     target = next((t for t in fake_db if t.id == id), None)
     if target is None:
         return {"message": "任务不存在"}
@@ -113,7 +129,10 @@ async def put_toDo(id: Annotated[int, Path()], item: Annotated[ToDoUpdate, Body(
 
 
 @app.delete("/toDo/{id}")
-async def delete_toDo(id: Annotated[int, Path()]):
+async def delete_toDo(
+    id: Annotated[int, Path()],
+    user=Depends(get_current_user),
+):
     for i, item in enumerate(fake_db):
         if item.id == id:
             fake_db.pop(i)
